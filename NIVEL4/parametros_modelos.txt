@@ -1,0 +1,26 @@
+# Parâmetros dos Modelos de Propagação – gerado pelo Nível 6
+d_m=6.00
+pt=20.0
+sf=12
+bw=125
+cr=8
+# Multi-Wall
+k1=1  lw1=9.00
+k2=1  lw2=4.00
+k3=0  lw3=2.00
+k4=0  lw4=15.00
+nf=0  lf=0.00
+lc=37.00
+sens=-137.0
+# Log-Distance
+ld_n=3.00
+ld_d0=1.00
+ld_sigma=0.00
+# Dual-Slope
+ds_d0=1.00
+ds_d1=10.00
+ds_d2=30.00
+ds_n1=2.00
+ds_n2=3.50
+ds_n3=5.00
+ds_sigma=0.00
