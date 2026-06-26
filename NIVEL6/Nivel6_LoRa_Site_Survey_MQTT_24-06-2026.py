@@ -10,6 +10,7 @@
 import time
 import os
 import tkinter.messagebox as tkMessageBox
+import tkinter.filedialog as tkFileDialog
 import tkinter.ttk as ttk
 import tkinter
 
@@ -34,11 +35,21 @@ dir_nivel4 = os.path.join(os.path.dirname(__file__), '../NIVEL4/')
 # real). Consumido pela Aba 3 (Gerência Completa) e Aba 4 (Taxas de Dados).
 ARQUIVO_N5_GERENCIA = os.path.join(dir_nivel4, 'dados_nivel5.tmp')
 
+# Arquivo intermediário gravado pelo Nível 5 de Aplicação (média móvel da
+# luminosidade). Consumido pela Aba 1 (Aplicação).
+ARQUIVO_N5_APLICACAO = os.path.join(dir_nivel4, 'dados_nivel5_aplicacao.tmp')
+
 # =============================================================================
 # REFRESH das telas
 # =============================================================================
 
 REFRESH_MS = 500   # Intervalo de atualização dos gráficos [ms] (200 ms)
+
+# Número de medidas amostradas nos gráficos por padrão (ajustável pelo
+# operador no campo "Amostragem" da aba Gerência LoRa). Todas as 4 abas
+# gráficas (Aplicação, Gerência, Gerência Completa, Taxas de Dados) usam
+# esse mesmo valor para decidir quantas das medidas mais recentes exibir.
+JANELA_AMOSTRAGEM_PADRAO = 100
 
 # =============================================================================
 # ARQUIVO DE COMANDO LED AMARELO
@@ -252,6 +263,122 @@ def le_dados_nivel5():
 
 
 # =============================================================================
+# JANELA DE AMOSTRAGEM - campo ajustável pelo operador (aba Gerência LoRa)
+# =============================================================================
+# O widget Entry (entry_janela_amostragem) é criado mais abaixo, na aba
+# Gerência LoRa, e tem um bind de evento que chama _on_amostragem_editada()
+# sempre que o operador efetivamente edita o campo (tecla Enter ou ao saiR
+# do campo). Isso é o que permite distinguir com certeza uma edição manual
+# de um auto-ajuste feito pelo próprio código.
+#
+# IMPORTANTE: o valor MOSTRADO no campo pode ser auto-ajustado para baixo
+# quando o teste tem menos medidas do que o desejado (regra pedida pelo
+# operador). Se essa leitura auto-ajustada fosse reaproveitada como a nova
+# "intenção" do operador, o campo travaria no primeiro valor pequeno (ex.:
+# 1, na primeira medida do teste) e nunca mais cresceria, mesmo com o teste
+# acumulando centenas de medidas depois. Por isso a intenção real do
+# operador só é atualizada pelo evento de edição manual do campo - nunca
+# pela leitura feita durante o auto-ajuste visual.
+_ultima_intencao_amostragem = [JANELA_AMOSTRAGEM_PADRAO]
+
+
+def _on_amostragem_editada(event=None):
+    """
+    Callback ligado a eventos reais de edição do campo de amostragem
+    (Enter ou perda de foco). Só roda quando o OPERADOR interage com o
+    campo, nunca quando o próprio código auto-ajusta o valor exibido -
+    por isso pode atualizar a intenção real com segurança.
+    """
+    try:
+        valor = int(float(entry_janela_amostragem.get()))
+        if valor > 0:
+            _ultima_intencao_amostragem[0] = valor
+    except (ValueError, TclError):
+        pass
+
+
+def aplica_janela_amostragem(*series):
+    """
+    Recebe uma ou mais listas paralelas (mesma quantidade de elementos,
+    uma por medida) e retorna apenas os últimos N elementos de cada uma,
+    onde N = min(valor desejado pelo operador, total de medidas
+    disponíveis). Também atualiza visualmente o campo de amostragem para
+    refletir o total real quando este for menor que o desejado (regra:
+    "se a quantidade de medidas for inferior a este número, o campo de
+    amostragem de medidas será igual ao número de medidas"). A intenção
+    real do operador (_ultima_intencao_amostragem) só é alterada pelo
+    evento de edição manual do campo (_on_amostragem_editada) - nunca por
+    esta função - então o valor desejado nunca se perde, mesmo que o
+    campo seja auto-ajustado para baixo por vários ciclos seguidos.
+
+    Uso: medidas, rssi_dl, rssi_ul = aplica_janela_amostragem(medidas, rssi_dl, rssi_ul)
+    """
+    total_disponivel = len(series[0]) if series else 0
+    janela_desejada = _ultima_intencao_amostragem[0]
+    janela_efetiva = min(janela_desejada, total_disponivel) if total_disponivel else janela_desejada
+
+    valor_exibido_atual = None
+    try:
+        valor_exibido_atual = entry_janela_amostragem.get()
+    except (NameError, TclError):
+        pass
+
+    if valor_exibido_atual is not None:
+        novo_valor_exibido = str(min(janela_desejada, total_disponivel)) if total_disponivel else str(janela_desejada)
+        if valor_exibido_atual != novo_valor_exibido:
+            try:
+                entry_janela_amostragem.delete(0, END)
+                entry_janela_amostragem.insert(0, novo_valor_exibido)
+            except (NameError, TclError):
+                pass
+
+    if janela_efetiva <= 0:
+        return tuple(series)
+
+    return tuple(serie[-janela_efetiva:] for serie in series)
+
+
+# =============================================================================
+# BOTÃO "SALVAR PNG" - utilitário reutilizado pelas 4 telas gráficas
+# =============================================================================
+def salvar_grafico_png(fig, nome_sugerido):
+    """
+    Abre um diálogo "Salvar como" e exporta a figura matplotlib indicada
+    para um arquivo PNG no caminho escolhido pelo operador.
+    """
+    caminho = tkFileDialog.asksaveasfilename(
+        defaultextension=".png",
+        filetypes=[("Imagem PNG", "*.png"), ("Todos os arquivos", "*.*")],
+        initialfile=nome_sugerido,
+        title="Salvar gráfico como PNG"
+    )
+    if not caminho:
+        return  # operador cancelou o diálogo
+
+    try:
+        fig.savefig(caminho, dpi=150, facecolor='white', bbox_inches='tight')
+        tkMessageBox.showinfo("Salvo com sucesso", f"Gráfico salvo em:\n{caminho}")
+    except Exception as e:
+        tkMessageBox.showerror("Erro ao salvar", f"Não foi possível salvar o gráfico:\n{e}")
+
+
+def criar_botao_salvar_png(parent, fig, nome_sugerido, x, y, width=160):
+    """
+    Cria, na posição (x, y) do frame `parent`, um botão "💾 Salvar PNG" que
+    exporta a figura `fig` para PNG. `nome_sugerido` é o nome de arquivo
+    padrão oferecido no diálogo "Salvar como" (sem necessidade de extensão).
+    """
+    btn = Button(
+        parent, text="💾 Salvar PNG", font=("Arial", 9, "bold"),
+        width=18, bg="#4A6FA5", fg="white", activebackground="#3A5A8C",
+        cursor="hand2", relief="raised", bd=2,
+        command=lambda: salvar_grafico_png(fig, nome_sugerido)
+    )
+    btn.place(x=x, y=y, width=width)
+    return btn
+
+
+# =============================================================================
 # JANELA PRINCIPAL
 # =============================================================================
 janela_principal = Tk()
@@ -324,7 +451,7 @@ lbl_feedback_led.place(x=150, y=330, anchor="center")
 
 # --- GRÁFICO APLICAÇÃO ---
 reg_grafico_app = Frame(master=aba_aplicacao, borderwidth=1, relief='sunken')
-reg_grafico_app.place(x=320, y=10, width=700, height=720)
+reg_grafico_app.place(x=320, y=45, width=700, height=685)
 
 style.use("ggplot")
 
@@ -332,32 +459,65 @@ fig_app = Figure(figsize=(8.5, 7.5), facecolor='white')
 canvas_app = FigureCanvasTkAgg(fig_app, master=reg_grafico_app)
 canvas_app.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
+criar_botao_salvar_png(aba_aplicacao, fig_app, "grafico_aplicacao_luminosidade", x=870, y=10)
+
 
 def grafico_aplicacao(f, c):
     f.clear()
     x_medidas = []
     y_lum = []
+    y_lum_mm = []
 
-    path_tmp = os.path.join(dir_nivel4, 'dados_aplicacao.tmp')
-    if os.path.exists(path_tmp):
+    # --- Leitura do dados_nivel5_aplicacao.tmp (Nível 5 - média móvel) ---
+    # Preferencial: se o Nível 5 de Aplicação já estiver gerando dados, usa
+    # ele como fonte única (luminosidade bruta + média móvel já calculada).
+    if os.path.exists(ARQUIVO_N5_APLICACAO):
         try:
-            dados = open(path_tmp, 'r')
-            for line in dados:
+            with open(ARQUIVO_N5_APLICACAO, 'r') as dados:
+                linhas = dados.readlines()
+            for line in linhas[1:]:  # ignora o cabeçalho
                 line = line.strip()
                 colunas = line.split(';')
-                if len(colunas) >= 2:
-                    if colunas[0] != '':
-                        x_medidas.append(int(colunas[0]))
-                        y_lum.append(int(colunas[1]))
-            dados.close()
+                if len(colunas) >= 3 and colunas[0] != '':
+                    x_medidas.append(int(float(colunas[0])))
+                    y_lum.append(float(colunas[1]))
+                    y_lum_mm.append(float(colunas[2]))
         except Exception:
             pass
+
+    # --- Fallback: Nível 5 de Aplicação ainda não iniciado/disponível ---
+    # Lê diretamente o dados_aplicacao.tmp (Nível 4) para não deixar o
+    # gráfico vazio enquanto o processo Nivel5_Aplicacao.py não é executado.
+    if not x_medidas:
+        path_tmp = os.path.join(dir_nivel4, 'dados_aplicacao.tmp')
+        if os.path.exists(path_tmp):
+            try:
+                dados = open(path_tmp, 'r')
+                for line in dados:
+                    line = line.strip()
+                    colunas = line.split(';')
+                    if len(colunas) >= 2:
+                        if colunas[0] != '':
+                            x_medidas.append(int(colunas[0]))
+                            y_lum.append(int(colunas[1]))
+                dados.close()
+            except Exception:
+                pass
 
     if len(y_lum) > 0:
         str_atual_lum.set(f"{y_lum[-1]}")
 
+    # --- Aplica a janela de amostragem (últimas N medidas) ---
+    if y_lum_mm and len(y_lum_mm) == len(x_medidas):
+        x_medidas, y_lum, y_lum_mm = aplica_janela_amostragem(x_medidas, y_lum, y_lum_mm)
+    else:
+        x_medidas, y_lum = aplica_janela_amostragem(x_medidas, y_lum)
+
     axis = f.add_subplot(111)
     axis.plot(x_medidas, y_lum, label='Luminosidade', color='orange')
+    if y_lum_mm:
+        axis.plot(x_medidas, y_lum_mm, label='Média Móvel', color='darkorange',
+                  linewidth=1.8, linestyle='--')
     axis.set_ylabel('Luminosidade (0-4095)')
     axis.set_xlabel('Medida')
     axis.set_ylim(0, 4095)
@@ -542,6 +702,23 @@ btn_iniciar = Button(reg_parametrizacao, text="INICIAR TESTE",
                      font=("Arial", 13, "bold"), width=20, command=iniciar_teste)
 btn_iniciar.place(x=25, y=260)
 
+# --- AMOSTRAGEM DE MEDIDAS NOS GRÁFICOS ---
+# Define quantas das medidas MAIS RECENTES são exibidas nos gráficos das
+# 4 abas (Aplicação, Gerência, Gerência Completa, Taxas de Dados). Não
+# altera o teste em si (apenas a janela de visualização). Se o teste tiver
+# menos medidas do que o valor digitado aqui, o campo é ajustado
+# automaticamente para refletir o total real disponível.
+Label(reg_parametrizacao, text="Amostragem (qtde. medidas)", font=("Arial", 10, "bold"),
+      bg="#F0F0F0", fg="#4A6FA5").place(x=20, y=335)
+entry_janela_amostragem = Entry(reg_parametrizacao, width=10, font=("Arial", 12), justify=CENTER)
+entry_janela_amostragem.place(x=170, y=333)
+entry_janela_amostragem.insert(0, str(JANELA_AMOSTRAGEM_PADRAO))
+# Captura a intenção real do operador apenas quando ele de fato edita o
+# campo (tecla Enter ou ao clicar fora) - nunca durante o auto-ajuste
+# visual feito pelos próprios gráficos.
+entry_janela_amostragem.bind("<Return>", _on_amostragem_editada)
+entry_janela_amostragem.bind("<FocusOut>", _on_amostragem_editada)
+
 # --- DESEMPENHO ---
 reg_desempenho = Frame(master=aba_gerencia, borderwidth=1, relief='sunken', bg="#F0F0F0")
 reg_desempenho.place(x=10, y=400, width=300, height=340)
@@ -606,11 +783,13 @@ _lbl_m("PER (Geral)",         str_atual_per,          "red",   570)
 
 # --- GRÁFICO GERÊNCIA ---
 reg_grafico_ger = Frame(master=aba_gerencia, borderwidth=1, relief='sunken')
-reg_grafico_ger.place(x=320, y=10, width=740, height=730)
+reg_grafico_ger.place(x=320, y=45, width=740, height=695)
 
 fig_ger = Figure(figsize=(8.5, 7.5), facecolor='white')
 canvas_ger = FigureCanvasTkAgg(fig_ger, master=reg_grafico_ger)
 canvas_ger.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+criar_botao_salvar_png(aba_gerencia, fig_ger, "grafico_gerencia_lora", x=900, y=10)
 
 
 def grafico_rssi(f, c):
@@ -660,6 +839,9 @@ def grafico_rssi(f, c):
     if x:     str_atual_dl.set(f"Atual: {x[-1]} dBm")
     if xUP:   str_atual_ul.set(f"Atual: {xUP[-1]} dBm")
     if psr_dl: str_atual_psr.set(f"Atual: {psr_dl[-1]} %")
+
+    # --- Aplica a janela de amostragem (últimas N medidas) ---
+    z, x, xUP, psr_dl = aplica_janela_amostragem(z, x, xUP, psr_dl)
 
     axis = f.add_subplot(311)
     axis.plot(z, x, label='RSSI DOWNLINK', color='blue')
@@ -797,11 +979,13 @@ for i, var in enumerate([str5_snr_ul_atual, str5_snr_ul_max, str5_snr_ul_min, st
 
 # --- ÁREA CENTRAL: 4 GRÁFICOS (RSSI DL, RSSI UL, SNR DL, SNR UL) ---
 reg_grafico_ger5 = Frame(master=aba_gerencia_completa, borderwidth=1, relief='sunken')
-reg_grafico_ger5.place(x=250, y=10, width=790, height=730)
+reg_grafico_ger5.place(x=250, y=45, width=790, height=695)
 
 fig_ger5 = Figure(figsize=(9.2, 7.5), facecolor='white')
 canvas_ger5 = FigureCanvasTkAgg(fig_ger5, master=reg_grafico_ger5)
 canvas_ger5.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+criar_botao_salvar_png(aba_gerencia_completa, fig_ger5, "grafico_gerencia_completa", x=440, y=10)
 
 # --- COLUNA DIREITA: LIMIARES AJUSTÁVEIS (RSSI x6 + SNR x2) ---
 reg_limiares = Frame(master=aba_gerencia_completa, borderwidth=1, relief='sunken', bg="#F0F0F0")
@@ -828,15 +1012,15 @@ def _campo_limiar(parent, texto, y_pos, valor_inicial, cor="black"):
 Label(reg_limiares, font=("Arial", 11, "bold"), text="RSSI DOWNLINK", fg="blue",
       bg="#F0F0F0").place(x=10, y=105)
 entry_rssi_dl_ruim = _campo_limiar(reg_limiares, "Ruim (≥)", 130, -100, "red")
-entry_rssi_dl_boa = _campo_limiar(reg_limiares, "Boa (≥)", 155, -100, "orange")
-entry_rssi_dl_exc = _campo_limiar(reg_limiares, "Excelente (≥)", 180, -75, "green")
+entry_rssi_dl_boa = _campo_limiar(reg_limiares, "Boa (≥)", 155, -80, "orange")
+entry_rssi_dl_exc = _campo_limiar(reg_limiares, "Excelente (≥)", 180, -60, "green")
 
 # --- Limiares RSSI Uplink ---
 Label(reg_limiares, font=("Arial", 11, "bold"), text="RSSI UPLINK", fg="green",
       bg="#F0F0F0").place(x=10, y=215)
 entry_rssi_ul_ruim = _campo_limiar(reg_limiares, "Ruim (≥)", 240, -100, "red")
-entry_rssi_ul_boa = _campo_limiar(reg_limiares, "Boa (≥)", 265, -100, "orange")
-entry_rssi_ul_exc = _campo_limiar(reg_limiares, "Excelente (≥)", 290, -75, "green")
+entry_rssi_ul_boa = _campo_limiar(reg_limiares, "Boa (≥)", 265, -80, "orange")
+entry_rssi_ul_exc = _campo_limiar(reg_limiares, "Excelente (≥)", 290, -60, "green")
 
 # --- Limiares SNR ---
 Label(reg_limiares, font=("Arial", 11, "bold"), text="LIMIAR SNR (dB)", fg="purple",
@@ -871,20 +1055,28 @@ def grafico_gerencia_completa(f, c):
 
     # Lê os limiares atuais inseridos pelo operador
     lim_dl_ruim = _ler_float_seguro(entry_rssi_dl_ruim, -100)
-    lim_dl_boa = _ler_float_seguro(entry_rssi_dl_boa, -100)
-    lim_dl_exc = _ler_float_seguro(entry_rssi_dl_exc, -75)
+    lim_dl_boa = _ler_float_seguro(entry_rssi_dl_boa, -80)
+    lim_dl_exc = _ler_float_seguro(entry_rssi_dl_exc, -60)
     lim_ul_ruim = _ler_float_seguro(entry_rssi_ul_ruim, -100)
-    lim_ul_boa = _ler_float_seguro(entry_rssi_ul_boa, -100)
-    lim_ul_exc = _ler_float_seguro(entry_rssi_ul_exc, -75)
+    lim_ul_boa = _ler_float_seguro(entry_rssi_ul_boa, -80)
+    lim_ul_exc = _ler_float_seguro(entry_rssi_ul_exc, -60)
     lim_snr_dl = _ler_float_seguro(entry_snr_dl_limiar, 0)
     lim_snr_ul = _ler_float_seguro(entry_snr_ul_limiar, 0)
 
+    # --- Aplica a janela de amostragem (últimas N medidas) apenas nas
+    # curvas plotadas. Os agregados (máx/mín/desvio padrão/média/mediana)
+    # continuam vindo de dados5 (intocado), pois representam o teste
+    # completo, não a janela visível no gráfico.
+    medidas_plot, rssi_dl_plot, rssi_ul_plot, snr_dl_plot, snr_ul_plot = (
+        aplica_janela_amostragem(medidas, rssi_dl, rssi_ul, snr_dl, snr_ul)
+    )
+
     f.clear()
 
-    # --- Gráfico 1: RSSI Downlink + Média Móvel + Limiares ---
+    # --- Gráfico 1: RSSI Downlink + Limiares ---
+    # (a média móvel é mostrada apenas em formato de texto na coluna esquerda)
     ax1 = f.add_subplot(411)
-    ax1.plot(medidas, rssi_dl, color='blue', linewidth=1, label='RSSI DL')
-    ax1.plot(medidas, rssi_dl_mm, color='navy', linewidth=1.6, linestyle='--', label='Média Móvel')
+    ax1.plot(medidas_plot, rssi_dl_plot, color='blue', linewidth=1, label='RSSI DL')
     ax1.axhline(lim_dl_exc, color='green', linewidth=0.9, linestyle=':', label='Excelente')
     ax1.axhline(lim_dl_boa, color='orange', linewidth=0.9, linestyle=':', label='Boa')
     ax1.axhline(lim_dl_ruim, color='red', linewidth=0.9, linestyle=':', label='Ruim')
@@ -892,10 +1084,9 @@ def grafico_gerencia_completa(f, c):
     ax1.legend(loc='upper right', fontsize='xx-small', ncol=2)
     ax1.tick_params(axis='both', labelsize=8)
 
-    # --- Gráfico 2: RSSI Uplink + Média Móvel + Limiares ---
+    # --- Gráfico 2: RSSI Uplink + Limiares ---
     ax2 = f.add_subplot(412)
-    ax2.plot(medidas, rssi_ul, color='red', linewidth=1, label='RSSI UL')
-    ax2.plot(medidas, rssi_ul_mm, color='darkred', linewidth=1.6, linestyle='--', label='Média Móvel')
+    ax2.plot(medidas_plot, rssi_ul_plot, color='red', linewidth=1, label='RSSI UL')
     ax2.axhline(lim_ul_exc, color='green', linewidth=0.9, linestyle=':', label='Excelente')
     ax2.axhline(lim_ul_boa, color='orange', linewidth=0.9, linestyle=':', label='Boa')
     ax2.axhline(lim_ul_ruim, color='red', linewidth=0.9, linestyle=':', label='Ruim')
@@ -903,23 +1094,21 @@ def grafico_gerencia_completa(f, c):
     ax2.legend(loc='upper right', fontsize='xx-small', ncol=2)
     ax2.tick_params(axis='both', labelsize=8)
 
-    # --- Gráfico 3: SNR Downlink + Média + Limiar ---
+    # --- Gráfico 3: SNR Downlink + Limiar ---
     ax3 = f.add_subplot(413)
-    ax3.plot(medidas, snr_dl, color='blue', linewidth=1, label='SNR DL')
-    ax3.plot(medidas, snr_dl_media, color='navy', linewidth=1.6, linestyle='--', label='Média')
+    ax3.plot(medidas_plot, snr_dl_plot, color='blue', linewidth=1, label='SNR DL')
     ax3.axhline(lim_snr_dl, color='purple', linewidth=0.9, linestyle=':', label='Limiar')
     ax3.set_ylabel('SNR DL\n(dB)', fontsize=8)
-    ax3.legend(loc='upper right', fontsize='xx-small', ncol=3)
+    ax3.legend(loc='upper right', fontsize='xx-small', ncol=2)
     ax3.tick_params(axis='both', labelsize=8)
 
-    # --- Gráfico 4: SNR Uplink + Média + Limiar ---
+    # --- Gráfico 4: SNR Uplink + Limiar ---
     ax4 = f.add_subplot(414)
-    ax4.plot(medidas, snr_ul, color='green', linewidth=1, label='SNR UL')
-    ax4.plot(medidas, snr_ul_media, color='darkgreen', linewidth=1.6, linestyle='--', label='Média')
+    ax4.plot(medidas_plot, snr_ul_plot, color='green', linewidth=1, label='SNR UL')
     ax4.axhline(lim_snr_ul, color='purple', linewidth=0.9, linestyle=':', label='Limiar')
     ax4.set_ylabel('SNR UL\n(dB)', fontsize=8)
     ax4.set_xlabel('Medida', fontsize=8)
-    ax4.legend(loc='upper right', fontsize='xx-small', ncol=3)
+    ax4.legend(loc='upper right', fontsize='xx-small', ncol=2)
     ax4.tick_params(axis='both', labelsize=8)
 
     f.subplots_adjust(left=0.10, bottom=0.07, right=0.97, top=0.97, hspace=0.55)
@@ -1008,11 +1197,13 @@ Label(reg_texto_taxas, font=("Arial", 8), fg="gray30", bg="#F0F0F0",
 
 # --- ÁREA DE GRÁFICOS: PSR% e Taxa Efetiva ---
 reg_grafico_taxas = Frame(master=aba_taxas, borderwidth=1, relief='sunken')
-reg_grafico_taxas.place(x=290, y=10, width=1050, height=730)
+reg_grafico_taxas.place(x=290, y=45, width=1050, height=695)
 
 fig_taxas = Figure(figsize=(11.5, 7.5), facecolor='white')
 canvas_taxas = FigureCanvasTkAgg(fig_taxas, master=reg_grafico_taxas)
 canvas_taxas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+criar_botao_salvar_png(aba_taxas, fig_taxas, "grafico_taxas_dados", x=750, y=10)
 
 
 def grafico_taxas_dados(f, c):
@@ -1030,20 +1221,28 @@ def grafico_taxas_dados(f, c):
 
     limiar_psr = _ler_float_seguro(entry_psr_limiar, 90)
 
+    # --- Aplica a janela de amostragem (últimas N medidas) apenas nas
+    # curvas plotadas. Os agregados (PSR médio, PER médio, taxa teórica
+    # atual, contadores) continuam vindo de dados5 (intocado), pois
+    # representam o teste completo, não a janela visível no gráfico.
+    medidas_plot, psr_ul_plot, taxa_calculada_plot = aplica_janela_amostragem(
+        medidas, psr_ul, taxa_calculada
+    )
+
     f.clear()
 
-    # --- Gráfico 1: PSR% Uplink + Média + Limiar ajustável ---
+    # --- Gráfico 1: PSR% Uplink + Limiar ajustável ---
+    # (a média de PSR é mostrada apenas em formato de texto, no painel à esquerda)
     ax1 = f.add_subplot(211)
-    ax1.plot(medidas, psr_ul, color='green', linewidth=1, label='PSR UL (%)')
-    ax1.plot(medidas, psr_ul_medio, color='darkgreen', linewidth=1.6, linestyle='--', label='PSR Médio')
+    ax1.plot(medidas_plot, psr_ul_plot, color='green', linewidth=1, label='PSR UL (%)')
     ax1.axhline(limiar_psr, color='red', linewidth=1.1, linestyle=':', label=f'Limiar ({limiar_psr:.0f}%)')
     ax1.set_ylabel('PSR Uplink (%)')
     ax1.set_ylim(-5, 105)
-    ax1.legend(loc='lower right', fontsize='x-small', ncol=3)
+    ax1.legend(loc='lower right', fontsize='x-small', ncol=2)
 
     # --- Gráfico 2: Taxa Efetiva (bps) + Limiar Teórico ---
     ax2 = f.add_subplot(212)
-    ax2.plot(medidas, taxa_calculada, color='blue', linewidth=1, label='Taxa Efetiva (bps)')
+    ax2.plot(medidas_plot, taxa_calculada_plot, color='blue', linewidth=1, label='Taxa Efetiva (bps)')
     if taxa_teorica:
         ax2.axhline(taxa_teorica[-1], color='orange', linewidth=1.1, linestyle=':',
                     label=f'Taxa Teórica ({taxa_teorica[-1]:.1f} bps)')
