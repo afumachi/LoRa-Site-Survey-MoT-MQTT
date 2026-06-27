@@ -619,7 +619,7 @@ Label(reg_parametrizacao, text="2 a 20dBm", font=("Arial", 8),
       bg="#F0F0F0").place(x=30, y=235)
 valor_potencia_radio = Entry(reg_parametrizacao, width=10, font=("Arial", 12))
 valor_potencia_radio.place(x=170, y=215)
-valor_potencia_radio.insert(0, "20")
+valor_potencia_radio.insert(0, "14")
 
 # Status
 status_texto_ger = StringVar()
