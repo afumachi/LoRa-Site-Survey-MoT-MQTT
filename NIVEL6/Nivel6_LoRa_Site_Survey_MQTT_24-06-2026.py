@@ -143,7 +143,7 @@ def atualizar_visual_led():
                 activebackground="#444444"
             )
 
-
+'''
 # =============================================================================
 # FUNÇÃO DE LISTAGEM DE PORTAS SERIAIS
 # =============================================================================
@@ -199,6 +199,8 @@ def ler_porta_ativa():
     except Exception:
         return "Não configurada"
 
+
+'''
 
 # =============================================================================
 # LEITURA DO ARQUIVO DE NÍVEL 5 (dados_nivel5.tmp)
