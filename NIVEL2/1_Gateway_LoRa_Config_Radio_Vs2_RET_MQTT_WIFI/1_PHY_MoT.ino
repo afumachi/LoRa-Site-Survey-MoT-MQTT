@@ -36,7 +36,6 @@ void Phy_mqtt_receive_DL() {
   }
 
 
-
   if (mqtt_dl_disponivel) {          // Flag setada no callback MQTT
     mqtt_dl_disponivel = false;
 
@@ -127,7 +126,6 @@ void Phy_radio_receive_UL() {
       //===================== QUANDO A BASE  VERIFICA O ENDENREÇO DE DESTINO O PACOTE SÓ É ENVIADO PARA A SERIAL CASO A BASE SEJA O DESTINATÁRIO - nesse caso descomentar o bloco abaixo
       // Esta é uma função originalmente da camada de rede, mas existe um cross-layer para verificação do endereço de destino, recebendo somente os pacotes que são destinados para a base
 
-      //delay(100);
       digitalWrite(PIN_LED_VERDE, LOW);  // Fim da leitura do Pacote
       Serial.println("Pacote UPLINK Recebido");
       if (PacoteUL[RECEIVER_ID] == MY_ID) {
@@ -140,8 +138,9 @@ void Phy_radio_receive_UL() {
           aguardando_confirmacao_UL = false;
           millis_inicio_aguarda_UL  = 0;
 
-//          //Serial.print("[GATEWAY] Confirmação UL recebida do sensor. MAC4_COMANDO=");
-//          //Serial.println(confirma_novo_radio_sensor);
+//        Serial.print("[GATEWAY] Confirmação UL recebida do sensor. MAC4_COMANDO=");
+//        Serial.println(confirma_novo_radio_sensor);
+
         }
 
         Mac_radio_receive_DL();
@@ -195,11 +194,11 @@ void Phy_mqtt_send_UL() {
   // Insere (sobrescreve) o valor em 1 byte do pacote com o valor calculado de SNR (de -20dB a + 20dB)
   // Processa SNR no range de -20.0 dB a +20.0 dB com offset de 30 para um valor inteiro alocando em 1 Bytes
 
-  //20,5+30 = 50,5
-  //50,5*4 = 202
+  //20 + 30 = 50
+  //50 * 4 = 200
 
-  //-20,5+30 = 9,5
-  //9,5 * 4 = 38
+  //-20 + 30 = 10
+  //10 * 4 = 40
 
   SNR_UL = int((SNR_UL_bruto + 30) * 4);
 
@@ -221,7 +220,7 @@ void Phy_mqtt_send_UL() {
 
   if (confirma_novo_radio_base == 10){
     //RetornaConfiguracoesRadioMAX();
-    Serial.println("Perda Enlace Nó Sensor - Retorna Configuracoes Radio MAX");
+    Serial.println("Perda Enlace Nó Sensor - Retorna Configuracoes Radio LBDC");
     // Para limpar:
     memset(PacoteUL, 0, sizeof(PacoteUL));
     //delay(200);
@@ -300,7 +299,7 @@ void reset_gateway_para_setup_inicial() {
 
 
 // =====================================================================
-//                     9 - Callback MQTT (recepção de mensagens)
+// ===== Callback MQTT (recepção de mensagens) =====
 // =====================================================================
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, TOPIC_DL) == 0) {
@@ -314,8 +313,25 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 }
 
 // =====================================================================
-//                    10 - Funções auxiliares de conexão
+// ===== Funções auxiliares de conexão =====
 // =====================================================================
+
+void conectar_mqtt() {
+  while (!mqttClient.connected()) {
+    Serial.print("[MQTT] Conectando ao broker...");
+    if (mqttClient.connect(CLIENT_ID.c_str())) {
+      Serial.println(" conectado!");
+      mqttClient.subscribe(TOPIC_DL);
+      Serial.print("[MQTT] Inscrito em: ");
+      Serial.println(TOPIC_DL);
+    } else {
+      Serial.print(" falhou (rc=");
+      Serial.print(mqttClient.state());
+      Serial.println("). Tentando em 3s...");
+      delay(3000);
+    }
+  }
+}
 
 /*
 void conectar_wifi() {
@@ -338,21 +354,3 @@ void conectar_wifi() {
   Serial.println(WiFi.localIP());
 }
 */
-void conectar_mqtt() {
-  while (!mqttClient.connected()) {
-    Serial.print("[MQTT] Conectando ao broker...");
-    if (mqttClient.connect(CLIENT_ID.c_str())) {
-      Serial.println(" conectado!");
-      mqttClient.subscribe(TOPIC_DL);
-      Serial.print("[MQTT] Inscrito em: ");
-      Serial.println(TOPIC_DL);
-    } else {
-      Serial.print(" falhou (rc=");
-      Serial.print(mqttClient.state());
-      Serial.println("). Tentando em 3s...");
-      delay(3000);
-    }
-  }
-}
-
-

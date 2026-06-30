@@ -49,10 +49,8 @@ void setup() {
   Serial.print("Endereço IP: ");
   Serial.println(WiFi.localIP());
 
-
   CLIENT_ID = "esp32_gateway+lora_" + String(WiFi.macAddress());
   CLIENT_ID.replace(":", "");
-
 
   // ---------- Inicia MQTT ----------
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
@@ -60,12 +58,12 @@ void setup() {
   mqttClient.setBufferSize(128);   // era 256 garante buffer para 20 bytes + overhead
   conectar_mqtt();
 
-
   // --- Inicialização da Comunicação SPI entre o ESP32 e o Módulo LoRa RFM95 ---
   SPI.begin(SCK, MISO, MOSI, SS);
   delay(20);
   LoRa.setSPI(SPI);
   delay(20);
+
   // --- Inicialização da Comunicação LoRa em 915Mhz---
   LoRa.setPins(SS, RST, DIO0);
   if (!LoRa.begin(FREQUENCY_IN_HZ)) {
@@ -81,6 +79,11 @@ void setup() {
 
   // Aguarda 1 segundo para estabilização
   delay(1000);
+
+  //  --- Pisca Led verde  --- Sucesso ao Iniciar 
+  digitalWrite(PIN_LED_VERDE, HIGH);  // DESLIGA O LED VERDE - DEVE SER LOW DURANTE BOOT
+  delay(1000);
+  digitalWrite(PIN_LED_VERDE, LOW); 
 
   #ifdef loraCRC   // Habilitação do CRC do chip lora  (Configurado em bibliotecas.h)
     LoRa.enableCrc();

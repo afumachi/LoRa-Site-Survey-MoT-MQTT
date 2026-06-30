@@ -15,12 +15,32 @@
 # comanda_mudar_radio = 0
 #         Sem reação dos Devices LoRa (Gateway ou Nó Sensor)
 #         Nivel 3 ou Gateway não esperam nenhum feedback do Nó Sensor
-# 
+#
 # comanda_mudar_radio = 1 
-#         Mensagem aos Devices LoRa de que poderá haver uma modificação de Rádio
-#         Gateway espera receber no Pacote Uplink Byte 7 = 1 => Nó Sensor confirma 1
-#         Nivel 3 espera receber no Pacote Uplink Byte 7 = 2 => Gateway 1 + Nó Sensor 1 confirmam
-# 
+#         Comando aos Devices LoRa para modificação de Rádio para o próximo pacote
+#         Gateway espera receber no Pacote Uplink Byte 7 = 2 => Nó Sensor confirma 2
+#         Nivel 3 espera receber no Pacote Uplink Byte 7 = 3 => Gateway + Nó Sensor (confirmação)
+#
+# comanda_mudar_radio = 2
+#         A Ser Definido (TBD)
+#
+# comanda_mudar_radio = 3
+#         Teste de Enlace - Controle do N2_N3 de que o Nó Sensor está "online"
+#         Nó Sensor não contabiliza (sem incremento) do Contador de Uplink
+#
+# comanda_mudar_radio = 4
+#         LSS em funcionamento
+#         Incrementos do Contador de Uplink
+#
+# comanda_mudar_radio = 5
+#         Último Pacote do LSS
+#         Nó Sensor é informado do final do LSS
+#         ( Pode retornar ao [LBDC] LoRa Best Distance Configuration)
+#
+# comanda_mudar_radio = 10
+#         Perda de Enlace com o Nó Sensor
+#         Apenas Gateway retorna ao [LBDC] LoRa Best Distance Configuration - SF12)
+#
 # ========= Bibliotecas =================================
 #26-06-2026 - 
 # modificações mudança rádio para => 1
@@ -425,14 +445,6 @@ def downlink():
    # Camada de Rede
    Pacote_DL[8] = ID_sensor
    Pacote_DL[10] = ID_base
-   
-   # converte Bandwidth para envio em Byte [0-255]
-   if (valor_novo_bandwidth == 125):
-      valor_BW = 1
-   elif (valor_novo_bandwidth == 250):
-      valor_BW = 2
-   elif (valor_novo_bandwidth == 500):
-      valor_BW = 3
 
    # Camada MAC
    Pacote_DL[4] = (numero_de_medidas >> 8) & 0xFF  # MSB
@@ -442,6 +454,15 @@ def downlink():
    print("### DOWNLINK ### COMANDO RADIO", comanda_mudar_radio)
 
    # Camada PHY Física
+
+   # converte Bandwidth para envio em Byte [0-255]
+   if (valor_novo_bandwidth == 125):
+      valor_BW = 1
+   elif (valor_novo_bandwidth == 250):
+      valor_BW = 2
+   elif (valor_novo_bandwidth == 500):
+      valor_BW = 3
+      
    Pacote_DL[0] = valor_novo_spreadingfactor
    Pacote_DL[1] = valor_BW
    Pacote_DL[2] = valor_novo_codingrate
@@ -568,8 +589,8 @@ def uplink():
        perda_total += 1
        print("### UPLINK ### FALHA - Pacotes perdidos: ", perda_total) 
 
-       # EM DESENVOLVIMENTO
-       if ((perda_geral >= (numero_de_medidas * 0.5)) and (LSS_status == 1)): 
+       # EM DESENVOLVIMENTO - [LBDC] Caso PER >= 20% 
+       if ((perda_geral >= (numero_de_medidas * 0.2)) and (LSS_status == 1)): 
            print("")
            print("### UPLINK ### FALHA DE ENLACE ### Pacotes não recebidos : ", perda_geral)
            perda_geral = 0
@@ -662,7 +683,7 @@ def gravaLOG_Aplicacao():
      app_def.close()
 
 
-#===========Calculo da PSR geral
+#=========== Calculo da PSR geral
 def calculaPSR():
     global medida_atual, psr_geral, perda_total
     if medida_atual > 0:
@@ -674,7 +695,7 @@ def calculaPSR():
         psr_geral = 0.0
 
 
-#===========Calculo da taxa de Canal
+#=========== Calculo da taxa de Canal
 def calculaTaxaCanal():
     global taxa_canal_teorica, taxa_canal_calculada, psr_geral, valor_novo_bandwidth, valor_novo_spreadingfactor, valor_novo_codingrate
 
@@ -693,7 +714,7 @@ def calculaTaxaCanal():
     return round(taxa_canal_teorica, 2), round(taxa_canal_calculada, 2)
 
 
-#===========Calculo de Máximos e Mínimos RSSI
+#=========== Calculo de Máximos e Mínimos RSSI
 def calculaMaxMinRSSI():
     global rssi_DL, rssi_UL, rssi_max_dl, rssi_min_dl, rssi_max_ul, rssi_min_ul
     if rssi_DL > rssi_max_dl: rssi_max_dl = rssi_DL
@@ -744,13 +765,24 @@ while True:
              perda_total = 0
              perda_geral = 0             
          else:
-           
-             print("### LSS - ENLACE LORA PERDIDO - FUNÇÃO PERDA DE ENLACE ###")
-             perda_enlace()
-             comanda_mudar_radio = 0
-             confirma_mudar_radio = 0
-             perda_total = 0
-             perda_geral = 0
+             print("### LSS - FALHA TESTE ENLACE LORA - REFAZENDO TESTE... ###")
+             teste_enlace()
+             enlace_testado = 1
+             time.sleep(0.5)
+             if (confirma_mudar_radio == 4):
+                 print("### LSS - TESTE ENLACE LORA REALIZADO COM SUCESSO ###")
+                 comanda_mudar_radio = 0
+                 confirma_mudar_radio = 0
+                 LSS_status = 1
+                 perda_total = 0
+                 perda_geral = 0
+             else:
+                 print("### LSS - ENLACE LORA PERDIDO - FUNÇÃO PERDA DE ENLACE ###")
+                 perda_enlace()
+                 comanda_mudar_radio = 0
+                 confirma_mudar_radio = 0
+                 perda_total = 0
+                 perda_geral = 0
 
       tempo_entre_medidas = valor_tempo
       
