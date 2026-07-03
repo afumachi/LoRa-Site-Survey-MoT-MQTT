@@ -199,7 +199,7 @@ void Phy_mqtt_send_UL() {
 
   //-20 + 30 = 10
   //10 * 4 = 40
-
+      SNR_UL_bruto = LoRa.packetSnr();
   SNR_UL = int((SNR_UL_bruto + 30) * 4);
 
   if (SNR_UL >= 255){
