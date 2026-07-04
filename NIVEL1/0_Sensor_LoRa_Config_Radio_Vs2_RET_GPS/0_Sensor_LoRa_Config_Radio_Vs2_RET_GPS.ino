@@ -143,7 +143,7 @@ void loop() {
 
 
     // Lê os caracteres do GPS a cada 200 [ms]
-    unsigned long tempo_sensores_ms = 500UL; // 200 ms
+    unsigned long tempo_sensores_ms = 200UL; // 200 ms
 
     if (millis() - millis_gps_controle >= tempo_sensores_ms) {        
         updateGPS(); // Atualiza / Lê GPS
@@ -157,6 +157,10 @@ void loop() {
         // Zera contagem do tempo de controle GPS para tempo de ESP32 rodando
         millis_dht22_controle = millis(); 
     }
+
+  if ((confirma_novo_radio_base != 4) & (confirma_novo_radio_base != 5)){ 
+    millis_contador_DL = millis();
+  }
 
   Phy_radio_receive_DL(); // Função que recebe os pacotes pelo rádio
 

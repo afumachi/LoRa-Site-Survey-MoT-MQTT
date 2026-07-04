@@ -148,15 +148,15 @@ void Phy_radio_send_UL() {
   }
 
 
-  SNR_DL = int((SNR_DL_bruto + 30) * 4);
 
-  if (SNR_DL >= 255){
-    SNR_DL = 255;
-  }
+  // 1. Trava o valor entre -30 e +30 para evitar que o byte estoure
+  if (SNR_DL_bruto < -30.0) SNR_DL_bruto = -30.0;
+  if (SNR_DL_bruto > 30.0) SNR_DL_bruto = 30.0;
 
-  if (SNR_DL <= 0){
-    SNR_DL = 0;
-  }
+  // Usamos uint8_t (byte) para ocupar apenas 1 byte na memória.
+  // Usamos a função round() para garantir que o número float seja 
+  // arredondado corretamente antes de virar inteiro.
+  SNR_DL = (uint8_t)round((SNR_DL_bruto + 30.0) * 4.0); // Offset de 30.0dB e passo de 0.25dB (* 4.0)
 
   // =================Informações de gerência do pacote Início da montagem do pacote de UL
   PacoteUL[0] = RSSI_DL;
@@ -172,16 +172,6 @@ void Phy_radio_send_UL() {
   LoRa.endPacket();                   // Finaliza o envio do pacote
 
   digitalWrite(PIN_LED_VERMELHO, LOW); // Fim da Transmissão
-
-
-/*
-  Serial.print("RSSI: ");
-  Serial.println(RSSI_dBm_DL);
-    
-  Serial.print("SNR: ");
-  Serial.println(SNR_DL_bruto);
-
-*/
 
   display.setTextSize(1);
   display.setCursor(0, 48);
@@ -220,9 +210,9 @@ void reset_para_setup_inicial() {
   confirma_novo_radio_sensor = 0;
   confirma_novo_radio_base = 0;
   confirma_novo_radio = 0;
-
-  contadorUL = 0;
-  contadorSS = 0;
+  contador_perda_DL = 0;
+  //contadorUL = 0;
+  //contadorDL = 0;
 
   // Retorna rádio aos parâmetros de SETUP (primeiro_setup = 1 dispara o bloco de SETUP em Phy_radio_receive_DL)
   primeiro_setup = 1;
@@ -271,8 +261,8 @@ void AplicarConfiguracoesRadio() {
     confirma_novo_radio = 0;
     recebe_comando_nova_radio = 0;
     primeiro_setup = 0;
-    contadorUL = 0;
-    contadorSS = 0;
+    //contadorUL = 0;
+    //contadorSS = 0;
 
     Serial.println("APLICADA - Modificação de rádio");
 

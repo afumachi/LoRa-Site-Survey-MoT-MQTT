@@ -61,7 +61,7 @@ void Mac_radio_send_UL() {
     Serial.println("MAC - PacoteUL[7] - CICLO : ");
     Serial.println(confirma_novo_radio_sensor);
     confirma_novo_radio = 0;
-    contadorUL = contadorUL - 1;  // Decrementa o contador de pacote de UL - Pacote de Controle não de LSS
+  
   }
   else if (confirma_novo_radio_sensor == 2){
     // Confirmação do segundo ciclo para alteração das config. de rádio do Nó Sensor
@@ -69,7 +69,7 @@ void Mac_radio_send_UL() {
     Serial.println("MAC - PacoteUL[7] - RECONFIGURA RADIO : ");
     Serial.println(confirma_novo_radio_sensor);
     confirma_novo_radio = 1; // Habilita Nó Sensor a alterar as configurações de Rádio
-    //contadorUL = contadorUL - 1;  // Decrementa o contador de pacote de UL - Pacote de Controle não de LSS
+    
   }
   else if (confirma_novo_radio_sensor == 3){
     //  Confirmação do terceiro ciclo confirmando a alteração das config. de rádio do Nó Sensor
@@ -104,9 +104,10 @@ void Mac_radio_send_UL() {
 
     confirma_novo_radio_base = 0;
 
-    contadorUL = 0;
+    contadorDL = 0;
     contadorSS = 0;
     contadorUL = 0;
+    contador_perda_DL = 0;
   }
   else {
     // Sem necessidade de alteração, ou confirmação de alteração

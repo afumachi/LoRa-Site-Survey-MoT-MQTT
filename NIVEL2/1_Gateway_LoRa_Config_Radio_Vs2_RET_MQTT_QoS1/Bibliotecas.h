@@ -3,26 +3,47 @@
 //                     1 - Bibliotecas
 //=======================================================================
 
-//#include <Arduino.h>
 #include <SPI.h>
 #include <LoRa.h>
+#include <WiFi.h>
+#include <WiFiMulti.h>
+//#include <PubSubClient.h>
+#include <MQTT.h>   // 256dpi/arduino-mqtt -- instalar via Library Manager: "MQTT" by 256dpi
 
-#include <Wire.h>           // Inclui a Biblioteca Wire para Oled
-#include <Adafruit_GFX.h>   // Inclui a Biblioteca GFX para Oled 
-#include <Adafruit_SSD1306.h> // Inclui a Biblioteca OLED SSD1306
-#include <DHT.h>            // Inclui a Biblioteca DHT
-#include <TinyGPS++.h>      // Inclui a Biblioteca GPS
+// =====================================================================
+//                     2 - Configurações Wi-Fi
+// =====================================================================
+// Instancia o objeto WiFiMulti
+WiFiMulti wifiMulti;
+// --- Objeto Wi-Fi ---
+WiFiClient wifiClient;
+
+// =====================================================================
+//                     3 - Configurações MQTT
+// =====================================================================
+const char* MQTT_BROKER   = "broker.hivemq.com";
+const int   MQTT_PORT     = 1883;
+const char* TOPIC_DL      = "mot_lora_gps/gateway/downlink";  // Python → ESP32
+const char* TOPIC_UL      = "mot_lora_gps/gateway/uplink";    // ESP32  → Python
+String CLIENT_ID ;         // ID único no broker
+
+// QoS usado nos dois sentidos (DL e UL). QoS1 = "at least once": o broker
+// confirma o recebimento (PUBACK) e a biblioteca retransmite se necessário.
+// Importante para o dado do cliente (luminosidade).
+const int MQTT_QOS = 1;
+
+// --- Objeto MQTT ---
+MQTTClient mqttClient(256);   // buffer de 256 bytes (read/write)
+
+//const char* CLIENT_ID     = "esp32_gateway_lora";          // ID único no broker
 
 //=======================================================================
-//                     2 - Variáveis
+//                     4 - Variáveis
 //=======================================================================
 // Identificação do Nó Sensor e Tamanho de Pacote
 
-#define MY_ID 1 
+#define MY_ID 0
 #define TAMANHO_PACOTE 40
-#define NUM_LEITURA_LDR 4
-#define NUM_LEITURA_DHT 4
-
 byte PacoteDL[TAMANHO_PACOTE];
 byte PacoteUL[TAMANHO_PACOTE];
 
@@ -34,7 +55,6 @@ byte PacoteUL[TAMANHO_PACOTE];
 
 // --- 2. Definição de Pinos (Hardware) ---
 #define PIN_LED_VERMELHO 15 // Status ENVIO por RF
-#define PIN_LED_AMARELO 2   // ATUADOR (Controlado remotamente)
 #define PIN_LED_VERDE 4     // Status de RECEBIMENTO por RF
 #define PIN_LDR 36          // Sensor (APP)
 #define PIN_BOTAO 39        // Botão do Nó Sensor
@@ -52,54 +72,25 @@ byte PacoteUL[TAMANHO_PACOTE];
 
 // --- Configuração Rádio LoRa ---
 #define FREQUENCY_IN_HZ 915E6    // Frequência do Canal LoRa (ex: 915MHz)
-#define txPower 14               // Potência de Transmissão (dBm) [2 a 20 - padrão 14]
+#define txPower 20               // Potência de Transmissão (dBm) [2 a 20 - padrão 14]
 #define spreadingFactor 12       // Fator de Espalhamento - range de [6-12, padrão 7]
 #define signalBandwidth 125E3    // Banda do Sinal [125E3 | 250E3 | 500E3]
 #define codingRateDenominator 8  // Coding Rate (4/5) [4/6 | 4/7 | 4/8 | 4/5 |]
 //#define loraCRC                // Habilita ou disabilita o uso CRC, por padrão o CRC não é usado.
 
 
-// OLED configuration
-#define SCREEN_WIDTH 128 
-#define SCREEN_HEIGHT 64 
-#define OLED_RESET    -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-// Pinos sensor de temperatura e umidade DHT22 AM2302
-#define DHTPIN 13     // Define o pino de dados para o sensor DHT
-#define DHTTYPE DHT22   // Especifica o tipo do sensor como DHT22
-
-// Inicializa o sensor DHT
-DHT dht(DHTPIN, DHTTYPE);
-unsigned long millis_dht22_controle = 0;
-float temperatura, umidade;
-
-// GPS Setup (UART2)
-TinyGPSPlus gps;
-HardwareSerial SerialGPS(2); // Use UART2
-
-// Controle de leitura do GPS no Void Loop
-unsigned long millis_gps_controle = 0;
-bool gps_satelite = false;
-
 // Váriáveis utilizadas no código
-
 uint16_t contadorUL = 0;
 uint16_t contadorDL = 0;
 uint16_t contadorSS = 0; //uint16_t
-int LQI_DL;
+int LQI_UL;
 int tipo, saltos, saltosTotal, dataInitAddress; // Variáveis utilizadas para o roteamento
 
-float psr_geral;
+float RSSI_dBm_UL;    // Variável com a potência rádio recebida (RSSI) em dBm
+int RSSI_UL;          // Variável de mapeamento da RSSI em um valor de 0 a 255 para colocar no pacote
 
-float RSSI_dBm_DL;    // Variável com a potência rádio recebida (RSSI) em dBm
-int RSSI_DL;          // Variável de mapeamento da RSSI em um valor de 0 a 255 para colocar no pacote
-
-float SNR_DL_bruto;   // Variável com a relação sinal ruído
-uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será convertida para a SNR original no Python
-
-int luminosidade;
-uint8_t feedback_led_amarelo = 0;
+float SNR_UL_bruto;   // Variável com a relação sinal ruído
+uint8_t SNR_UL;           // Variável inteira para enviar a SNR, que será convertida para a SNR original no Python
 
 // # Configuração Atual Rádio LoRa
 int valor_atual_spreadingfactor = 12; // # Spreading Factor inicial = Maior espalhamento possível 12 (de 7 a 12)
@@ -128,30 +119,33 @@ uint8_t confirma_novo_radio_sensor = 0;
 
 unsigned int primeiro_setup = 1; // Indica o Startup do Módulo pela primeira vez
 
-//unsigned int tempo_radio = 8;
+//int tempo_radio = 8;
 
 unsigned long lastPacketMillis = 0; 
 unsigned long lastPacketTime = 0; // Timestamp local do último pacote recebido
 int lostPacketCounter = 0;        // Contador de falhas
 bool communicationLost = false;
 
-unsigned long time_out_lora = 12000UL;
+// ============================================================
+// VARIÁVEIS GLOBAIS - adicionar junto às demais declarações
+// ============================================================
+
+unsigned long millis_inicio_comando4 = 0;   // Marca o instante em que MAC4_COMANDO == 4 foi recebido
+bool comando4_ativo = false;                 // Flag que indica se a contagem está em andamento
+uint8_t tempo_radio = 0;                     // Tempo recebido em MAC3_TEMPO (em ms ou unidade definida pelo protocolo)
+uint8_t recebe_comando_nova_radio = 0;       // Comando recebido em MAC4_COMANDO
 
 // ============================================================
 // VARIÁVEIS GLOBAIS - adicionar junto às demais declarações
 // ============================================================
 
-unsigned long millis_standby_controle = 0;   // Marca o instante em que pacote foi recebido
-unsigned long millis_inicio_controle = 0;   // Marca o instante em que MAC4_COMANDO == foi recebido
-
-unsigned long millis_contador_DL = 0;   // Marca o instante em que pacote foi recebido
+unsigned long millis_inicio_aguarda_UL = 0;  // Marca o instante em que o DL com COMANDO 4 foi enviado
+bool aguardando_confirmacao_UL = false;       // Flag: gateway está aguardando UL de confirmação do sensor
 
 
-bool controle_ativo = false;                 // Flag que indica se a contagem está em andamento
-uint8_t tempo_radio = 0;                     // Tempo recebido em MAC3_TEMPO (em ms ou unidade definida pelo protocolo)
-uint8_t recebe_comando_nova_radio = 0;       // Comando recebido em MAC4_COMANDO
-uint8_t contador_perda_DL = 0;
-
+// --- Buffer e flag para o pacote DL recebido via MQTT ---
+volatile bool mqtt_dl_disponivel = false;
+byte          mqtt_dl_payload[TAMANHO_PACOTE];
 
 
   // adicionar um conjunto de variáveis PKT_UL e PKT_DL para deixar os pacotes independentes
@@ -179,7 +173,6 @@ uint8_t contador_perda_DL = 0;
 #define DL_COUNTER_LSB 13
 #define UL_COUNTER_MSB 14
 #define UL_COUNTER_LSB 15
-
 
 /*
 
