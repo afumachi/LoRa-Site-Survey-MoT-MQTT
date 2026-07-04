@@ -23,6 +23,7 @@ from matplotlib.figure import Figure
 import math
 import serial
 import serial.tools.list_ports
+import webbrowser
 
 
 
@@ -380,6 +381,46 @@ def criar_botao_salvar_png(parent, fig, nome_sugerido, x, y, width=160):
     return btn
 
 
+def _aplica_janela_silenciosa(*series):
+    """
+    Igual a aplica_janela_amostragem, mas sem tocar no campo visual
+    entry_janela_amostragem. Usada para séries auxiliares (ex.: temperatura)
+    que são lidas de uma fonte separada (dados_aplicacao.tmp bruto do
+    Nível 3) e não devem competir com a série principal (luminosidade,
+    que pode vir do Nível 5) pela atualização do campo de amostragem.
+    """
+    total_disponivel = len(series[0]) if series else 0
+    janela_desejada = _ultima_intencao_amostragem[0]
+    janela_efetiva = min(janela_desejada, total_disponivel) if total_disponivel else janela_desejada
+    if janela_efetiva <= 0:
+        return tuple(series)
+    return tuple(serie[-janela_efetiva:] for serie in series)
+
+
+# =============================================================================
+# GPS - COORDENADAS ATUAIS + BOTÃO "ABRIR NO MAPS"
+# =============================================================================
+# Guarda a última latitude/longitude válida recebida (lida do
+# dados_aplicacao.tmp) para o botão "Abrir no Google Maps" da Aba Aplicação.
+_gps_coords_atuais = [None, None]  # [latitude, longitude]
+
+
+def abrir_no_maps():
+    """
+    Abre o navegador padrão do sistema no Google Maps, centralizado na
+    última coordenada GPS recebida do Nó Sensor (Nível 3).
+    """
+    lat, lon = _gps_coords_atuais
+    if lat is None or lon is None:
+        tkMessageBox.showwarning(
+            "GPS indisponível",
+            "Ainda não há coordenadas GPS recebidas do Nó Sensor."
+        )
+        return
+    url = f"https://www.google.com/maps?q={lat},{lon}"
+    webbrowser.open(url)
+
+
 # =============================================================================
 # JANELA PRINCIPAL
 # =============================================================================
@@ -402,7 +443,7 @@ style_ttk.configure("TNotebook.Tab", font=("Arial", 12, "bold"), padding=[12, 6]
 # ABA 1: APLICAÇÃO
 # =============================================================================
 aba_aplicacao = Frame(notebook, bg="#F0F0F0")
-notebook.add(aba_aplicacao, text="  📊 Aplicação - Luminosidade ")
+notebook.add(aba_aplicacao, text="  📊 Aplicação - SENSORES ")
 
 # --- STATUS ---
 reg_status_app = Frame(master=aba_aplicacao, borderwidth=1, relief='sunken', bg="#F0F0F0")
@@ -432,6 +473,14 @@ str_atual_lum.set("--")
 Label(reg_dados_app, font=("Arial", 30, "bold"), textvariable=str_atual_lum,
       padx=5, pady=2, bg="#F0F0F0").place(x=150, y=150, anchor="center")
 
+Label(reg_dados_app, font=("Arial", 13, "bold"), text="TEMPERATURA",
+      fg="#D32F2F", padx=5, pady=5, bg="#F0F0F0").place(x=150, y=190, anchor="center")
+
+str_atual_temp = StringVar()
+str_atual_temp.set("--")
+Label(reg_dados_app, font=("Arial", 18, "bold"), textvariable=str_atual_temp,
+      padx=5, pady=2, bg="#F0F0F0").place(x=150, y=215, anchor="center")
+
 # --- LED AMARELO ---
 Label(reg_dados_app, font=("Arial", 11, "bold"), text="COMANDA LED AMARELO",
       fg="black", padx=5, pady=5, bg="#F0F0F0").place(x=150, y=235, anchor="center")
@@ -450,6 +499,39 @@ btn_led.place(x=30, y=270)
 lbl_feedback_led = Label(reg_dados_app, font=("Arial", 10), text="UL Byte[39]: --",
                          fg="gray", bg="#F0F0F0")
 lbl_feedback_led.place(x=150, y=330, anchor="center")
+
+# --- COORDENADAS GPS ---
+reg_gps_app = Frame(master=aba_aplicacao, borderwidth=1, relief='sunken', bg="#F0F0F0")
+reg_gps_app.place(x=10, y=545, width=300, height=180)
+
+Label(reg_gps_app, font=("Arial", 14, "bold"), text="COORDENADAS GPS",
+      padx=5, pady=5, bg="#F0F0F0").pack(side=TOP, anchor="n")
+
+Label(reg_gps_app, font=("Arial", 10, "bold"), text="Latitude:",
+      fg="black", bg="#F0F0F0").place(x=20, y=48)
+str_gps_lat = StringVar()
+str_gps_lat.set("--")
+Label(reg_gps_app, font=("Arial", 10), textvariable=str_gps_lat,
+      bg="#F0F0F0").place(x=110, y=48)
+
+Label(reg_gps_app, font=("Arial", 10, "bold"), text="Longitude:",
+      fg="black", bg="#F0F0F0").place(x=20, y=71)
+str_gps_lon = StringVar()
+str_gps_lon.set("--")
+Label(reg_gps_app, font=("Arial", 10), textvariable=str_gps_lon,
+      bg="#F0F0F0").place(x=110, y=71)
+
+Label(reg_gps_app, font=("Arial", 10, "bold"), text="Altitude:",
+      fg="black", bg="#F0F0F0").place(x=20, y=94)
+str_gps_alt = StringVar()
+str_gps_alt.set("--")
+Label(reg_gps_app, font=("Arial", 10), textvariable=str_gps_alt,
+      bg="#F0F0F0").place(x=110, y=94)
+
+btn_maps = Button(reg_gps_app, text="🗺️ Abrir no Google Maps", font=("Arial", 10, "bold"),
+                  bg="#2E7D32", fg="white", activebackground="#1B5E20",
+                  cursor="hand2", relief="raised", bd=3, command=abrir_no_maps)
+btn_maps.place(x=25, y=125, width=250, height=35)
 
 # --- GRÁFICO APLICAÇÃO ---
 reg_grafico_app = Frame(master=aba_aplicacao, borderwidth=1, relief='sunken')
@@ -515,7 +597,47 @@ def grafico_aplicacao(f, c):
     else:
         x_medidas, y_lum = aplica_janela_amostragem(x_medidas, y_lum)
 
-    axis = f.add_subplot(111)
+    # --- NOVO: Temperatura + GPS (lidos direto do dados_aplicacao.tmp) ---
+    # O arquivo do Nível 5 (ARQUIVO_N5_APLICACAO) só carrega luminosidade +
+    # média móvel, então temperatura e GPS são lidos sempre da fonte bruta
+    # gravada pelo Nível 3 (colunas: medida;luminosidade;temperatura;
+    # umidade;latitude;longitude;altitude).
+    x_medidas_temp = []
+    y_temp = []
+    lat_atual = lon_atual = alt_atual = None
+    path_tmp_raw = os.path.join(dir_nivel4, 'dados_aplicacao.tmp')
+    if os.path.exists(path_tmp_raw):
+        try:
+            with open(path_tmp_raw, 'r') as dados:
+                linhas = dados.readlines()
+            for line in linhas:
+                line = line.strip()
+                if not line:
+                    continue
+                colunas = line.split(';')
+                if len(colunas) >= 7 and colunas[0] != '':
+                    x_medidas_temp.append(int(colunas[0]))
+                    y_temp.append(float(colunas[2]))
+                    lat_atual = float(colunas[4])
+                    lon_atual = float(colunas[5])
+                    alt_atual = float(colunas[6])
+        except Exception:
+            pass
+
+    if y_temp:
+        str_atual_temp.set(f"{y_temp[-1]:.2f} °C")
+
+    if lat_atual is not None and lon_atual is not None:
+        str_gps_lat.set(f"{lat_atual:.6f}")
+        str_gps_lon.set(f"{lon_atual:.6f}")
+        str_gps_alt.set(f"{alt_atual:.2f} m" if alt_atual is not None else "--")
+        _gps_coords_atuais[0] = lat_atual
+        _gps_coords_atuais[1] = lon_atual
+
+    x_medidas_temp, y_temp = _aplica_janela_silenciosa(x_medidas_temp, y_temp)
+
+    # --- Subplot 1: Luminosidade ---
+    axis = f.add_subplot(211)
     axis.plot(x_medidas, y_lum, label='Luminosidade', color='orange')
     if y_lum_mm:
         axis.plot(x_medidas, y_lum_mm, label='Média Móvel', color='darkorange',
@@ -523,7 +645,14 @@ def grafico_aplicacao(f, c):
     axis.set_ylabel('Luminosidade (0-4095)')
     axis.set_xlabel('Medida')
     axis.set_ylim(0, 4095)
-    axis.legend(loc='upper right', fontsize='medium')
+    axis.legend(loc='upper right', fontsize='small')
+
+    # --- Subplot 2: Temperatura (gráfico individual) ---
+    axis_temp = f.add_subplot(212)
+    axis_temp.plot(x_medidas_temp, y_temp, label='Temperatura', color='#D32F2F')
+    axis_temp.set_ylabel('Temperatura (°C)')
+    axis_temp.set_xlabel('Medida')
+    axis_temp.legend(loc='upper right', fontsize='small')
 
     # Leitura passiva do status
     path_param = os.path.join(dir_nivel4, 'PARAMETROS.txt')
@@ -549,7 +678,7 @@ def grafico_aplicacao(f, c):
     )
     atualizar_visual_led()
 
-    f.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95)
+    f.subplots_adjust(left=0.10, bottom=0.08, right=0.95, top=0.96, hspace=0.35)
     c.draw()
 
     janela_principal.after(800, grafico_aplicacao, f, c)
@@ -799,11 +928,13 @@ def grafico_rssi(f, c):
     x = []; xUP = []; y = []; z = []; psr_dl = []
     ultimo_max_dl = "0"; ultimo_min_dl = "0"
     ultimo_max_ul = "0"; ultimo_min_ul = "0"
-    taxa_canal_teorica = "0"; taxa_canal_calculada = "0"
+    taxa_canal_teorica_str = "0"; taxa_canal_calculada_str = "0"
+    taxa_canal_teorica = 0; taxa_canal_calculada = 0
     snr_DL = "0"; snr_UL = "0"
     medida_atual_DL = "0"; counter_DL = "0"
     counter_UL = "0"; perda_total_UL = "0"
     atual_per = "0"; lss_status = "0"
+    
 
     path_tmp = os.path.join(dir_nivel4, 'dados_gerencia.tmp')
     if os.path.exists(path_tmp):
@@ -1213,6 +1344,9 @@ criar_botao_salvar_png(aba_taxas, fig_taxas, "grafico_taxas_dados", x=750, y=10)
 
 
 def grafico_taxas_dados(f, c):
+    fundo_eixo_y = 0
+    topo_eixo_y = 0
+    
     dados5 = le_dados_nivel5()
 
     medidas = dados5['medida']
