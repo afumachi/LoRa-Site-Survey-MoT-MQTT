@@ -1,0 +1,4 @@
+Time stamp;medida_atual;RSSI_DL;RSSI_UL;Perdas;PSR_DL;PSR_UL;Max_DL;Min_DL;Max_UL;Min_UL;valor_atual_spreadingfactor;valor_atual_bandwidth;valor_atual_codingrate;valor_atual_potencia_radio;taxa_canal_teorica;taxa_canal_calculada;snr_DL;snr_UL;contador_DL;contador_UL;perda_total;LSS_status
+05/07/2026 11:09:46;1;0;0;1;100.0;0.0;0;0;0;0;12;125;8;20;183.10546875;0.0;9.0;9.25;0;0;1;1
+05/07/2026 11:09:52;2;-57.0;-57.0;1;100.0;50.0;0;-57.0;0;-57.0;12;125;8;20;183.10546875;91.552734375;8.0;7.5;0;1;1;1
+05/07/2026 11:09:58;3;-57.0;-56.0;1;100.0;66.67;0;-57.0;0;-57.0;12;125;8;20;183.10546875;122.07031249999999;8.25;9.5;0;2;1;1

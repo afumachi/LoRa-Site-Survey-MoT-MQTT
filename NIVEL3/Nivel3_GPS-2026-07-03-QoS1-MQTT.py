@@ -41,30 +41,48 @@
 #         Perda de Enlace com o Nó Sensor
 #         Apenas Gateway retorna ao [LBDC] LoRa Best Distance Configuration - SF12)
 #
+"""
 # GPS gateway -23.005465, -46.835370, 775.4
-#Implementar uma aba de Mapa Calor LoRa , que  somente após finalizado cada teste,
-#habilite um botão de "gerar mapa de calor" para ser pressionado , e que gere
-# um mapa de calor do Gateway LoRa com os valores de RSSI apenas de Downlink.
-#
-# O Operador nesta aba deve poder inserir as coordenadas latitude , longitude e altitude
-# do gateway manualmente, com valores iniciais de -23.005465, -46.835370, 775.4 ,
-# respectivamente, e o Expoente de Perda de Percurso (n) do modelo de propagação
-# Shadowing, já que ele não possui sensor GPS e deve criar um arquivo TXT no Nivel4 com
-# estas coordenadas mais o expoente inserido, com valor inicial de 3.0. Utilizar os limiares
-# (sinal excelente, sinal bom, sinal ruim) de RSSI de Downlink da aba Gerência Completa para
-# gerar o mapa. Gerar um Python Nivel5_GPS.py que leia o arquivo .txt do Nivel4 com as posições
-# de coordenadas do GPS do gateway + expoente, e leia o arquivo dados_aplicacao.tmp e
-# dados_gerencia.tmp para RSSI de download, gerada pelo Nivel 3 que possui as coordenadas do
-# sensor, e  calcule a distância entre o Gateway (fixa) e o Sensor que estará em movimento
-# linha a linha, e com estes dados mais o expoente de perda de percurso calcular com o
-# modelo de propagação Shadowing, e então o Nivel5_GPS.py, após calculado as distâncias
-# linha a linha conforme o disparo de teste deve gerar um arquivo log txt com estas distancias, 
-# mais calculos para gerar um gráfico abaixo do mapa do modelo de shadowing, para alimentar de
-# volta a aba Nivel6, e gerar o mapa de calor, ou de cobertura + o gráfico de shadowing abaixo
-# do mapa de calor.
-# ========= Bibliotecas =================================
-#26-06-2026 - 
+Implementar novo prompt no Nivel6 criando uma nova aba de Mapa Calor LoRa,
+que  somente após finalizado cada teste, habilite um botão de "gerar mapa de calor" para
+ser pressionado, e que gere um mapa de calor do Gateway LoRa com os valores de RSSI apenas de Downlink,
+como mapa de cobertura do Gateway LoRa.
+O Operador nesta aba deve poder modificar as coordenadas latitude , longitude e altitude
+do gateway manualmente, com valores iniciais de -23.005465, -46.835370, 775.4 ,
+respectivamente, mais um campo do Expoente de Perda de Percurso (n) do modelo de propagação
+Shadowing, já que ele não possui sensor GPS, e deve criar um arquivo gps_gateway.txt no Nivel4 com
+estas coordenadas mais o expoente de oerda de percurso inserido, com valor inicial de 3.0.
+Utilizar os limiares (sinal excelente, sinal bom, sinal ruim) de RSSI de Downlink da aba 
+Gerência Completa para gerar o mapa de calor. Gerar um Python Nivel5_cobertura.py que leia o arquivo
+gps_gateway.txt do Nivel4 com as posições de coordenadas do GPS do gateway e do expoente,
+e leia o arquivo dados_aplicacao.tmp e dados_gerencia.tmp para RSSI de download do Nivel 4,
+que foram geradas pelo Nivel 3 que possui as coordenadas do sensor.
+O Nivel5_cobertura calcula a distância linha a linha entre o Gateway (que é fixa) e o Sensor
+que estará em movimento (posição móvel), e com estes dados mais o expoente de perda de percurso
+calcular o modelo de propagação Shadowing do teste, conforme a leitura dos dados do teste.
+Deve gerar um arquivo N5_log_cobertura.txt com estes dados de distância e do modelo de Shadowing.
+O Nivel6 lê este arquivo N5_log_cobertura.txt para gerar o mapa de cobertura do Gateway LoRa
+e o gráfico do modelo de shadowing logo abaixo do mapa de calor.
+
+
+# 26-06-2026 - 
 # modificações mudança rádio para => 1
+#
+# 03-07-2026 - 
+# implementa PSR-PDR Downlink no Nivel3
+#
+# 04-07-2026 - 
+# implementa leitura dos sensores:
+# - LDR - Luminosidade  
+# - DHT22 - Temperatura e Umidade
+# - GPS - Latitude - Longitude - Altitude
+# - Salva nos Logs de aplicação o valor dos sensores
+
+
+"""
+
+# ========= Bibliotecas =================================
+
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import CallbackAPIVersion
 import serial
@@ -632,14 +650,14 @@ def uplink():
        perda_geral += 1
        perda_total += 1
        print("### UPLINK ### FALHA - Pacotes perdidos: ", perda_total) 
-
+       """
        # EM DESENVOLVIMENTO - [LBDC] Caso PER >= 20% 
        if ((perda_geral >= (numero_de_medidas * 0.25)) and (LSS_status == 1)): 
            print("")
            print("### UPLINK ### FALHA DE ENLACE ### Pacotes não recebidos : ", perda_geral)
            perda_geral = 0
            perda_enlace()
-
+       """
 
 #============================================================================================================================
        

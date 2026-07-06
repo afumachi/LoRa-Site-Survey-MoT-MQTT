@@ -1,0 +1,44 @@
+11h15 - campos salles n 888
+teste 1 - SF12 / BW125 / CR 8
+disparo 500 pacotes
+distância 2m - 50 PACOTES
+PACOTE PERDIDO 1, 
+
+
+11H30  - campos salles n 800
+TESTE 2 - SF12 / BW125 / CR 8
+PACOTE 5 AO 55
+distância 50m - 50 PACOTES
+PACOTE PERDIDO +1, TOTal 2
+
+
+11H40 - campos salles n 727
+TESTE 3 - SF12 / BW125 / CR 8
+PACOTE 61 AO 115
+distância 100m - 50 PACOTES
+PACOTE PERDIDO +1, TOTAL 3
+
+
+11H50 - campos salles n 739
+TESTE 4 - SF12 / BW125 / CR 8
+PACOTE 123 AO 175
+distância 150m - 50 PACOTES
+PACOTE PERDIDO +1, TOTAL 3
+
+
+11H55 - campos salles n 649
+TESTE 4 - SF12 / BW125 / CR 8
+*PACOTE 186 AO 240
+distância 200m - 50 PACOTES
+PACOTE PERDIDO +1, TOTAL 4
+
+
+11H59 - campos salles n 593
+TESTE 5 - SF12 / BW125 / CR 8
+PACOTE 245 AO 295
+distância 350m - 50 PACOTES
+PACOTE PERDIDO +2, TOTAL 6
+
+
+teste 6 - 
+

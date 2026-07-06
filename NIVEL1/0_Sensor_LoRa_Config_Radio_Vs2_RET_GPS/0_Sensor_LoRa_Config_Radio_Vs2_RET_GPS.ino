@@ -123,14 +123,14 @@ void loop() {
   // --- Controle de timeout do Comando 4 ---
   // Executado a cada iteração do loop, independente de novo pacote chegar
   if (controle_ativo) {
-    unsigned long tempo_limite_ms = (unsigned long)tempo_radio * 10UL * 1000UL; // 10x o valor recebido em MAC3_TEMPO
+    unsigned long tempo_limite_ms = (unsigned long)tempo_radio * 50UL * 1000UL; // 10x o valor recebido em MAC3_TEMPO
 
     if (millis() - millis_inicio_controle >= tempo_limite_ms) {
       reset_para_setup_inicial(); // Timeout atingido → volta ao SETUP
     }
   }
    
-  unsigned long tempo_standby_ms = 10UL * time_out_lora; // 1 min. sem Pacotes DL sobe para MAX  
+  unsigned long tempo_standby_ms = 50UL * time_out_lora; // 1 min. sem Pacotes DL sobe para MAX  
 
   if (millis() - millis_standby_controle >= tempo_standby_ms) {
     Serial.println("TEMPO SEM RECEBER PACOTES - Time-Out");

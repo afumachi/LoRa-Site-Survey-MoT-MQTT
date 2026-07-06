@@ -1,0 +1,4 @@
+Time stamp;medida;rssi_dl;rssi_dl_max;rssi_dl_min;rssi_dl_desvpad;rssi_dl_mediana;rssi_dl_media_movel;rssi_ul;rssi_ul_max;rssi_ul_min;rssi_ul_desvpad;rssi_ul_mediana;rssi_ul_media_movel;snr_dl;snr_dl_max;snr_dl_min;snr_dl_media;snr_ul;snr_ul_max;snr_ul_min;snr_ul_media;psr_ul;psr_ul_medio;per_geral_medio;taxa_teorica;taxa_calculada;contador_dl;contador_ul;perda_total;lss_status
+05/07/2026 11:09:46;1;0.0;0.0;0.0;0.0;0.0;0.0;0.0;0.0;0.0;0.0;0.0;0.0;9.0;9.0;9.0;9.0;9.25;9.25;9.25;9.25;0.0;0.0;100.0;183.11;0.0;0;0;1;1
+05/07/2026 11:09:52;2;-57.0;0.0;-57.0;40.305;-28.5;-3.01;-57.0;0.0;-57.0;40.305;-28.5;-3.01;8.0;9.0;8.0;8.5;7.5;9.25;7.5;8.38;50.0;25.0;75.0;183.11;91.55;0;1;1;1
+05/07/2026 11:09:58;3;-57.0;0.0;-57.0;32.909;-57.0;-4.77;-56.0;0.0;-57.0;32.624;-56.0;-4.77;8.25;9.0;8.0;8.42;9.5;9.5;7.5;8.75;66.67;38.89;61.11;183.11;122.07;0;2;1;1

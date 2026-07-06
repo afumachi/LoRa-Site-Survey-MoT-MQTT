@@ -27,6 +27,7 @@ void setup() {
   digitalWrite(PIN_LED_VERDE,    LOW);
 
   // Cadastre quantas redes você quiser (SSID, Senha)
+  wifiMulti.addAP("2.4G COLETTI", "1145384609");
   wifiMulti.addAP("MJCA_FUNDOS", "21092429MJC@");
   wifiMulti.addAP("COLETTI_ADV_CRIS", "45384609");
 	wifiMulti.addAP("aafwifi", "aaf12345678");
