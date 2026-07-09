@@ -89,6 +89,16 @@ EXPOENTE_N_PADRAO = 3.0
 CICLO_SEGUNDOS = 1.0
 RAIO_TERRA_M = 6371000.0
 
+# --- Limites de sanidade dos dados de GPS/distância ---
+# Módulos GPS de baixo custo ocasionalmente entregam um "fix" inválido,
+# mantendo latitude/longitude plausíveis mas retornando uma altitude
+# completamente absurda (ex.: -18.789.707 m). Sem esse filtro, uma única
+# leitura corrompida infla a distância calculada para milhares de km e
+# destrói a escala de todo o gráfico do modelo Shadowing no Nível 6.
+ALTITUDE_MINIMA_VALIDA_M = -500.0     # ponto mais baixo em terra firme, com folga
+ALTITUDE_MAXIMA_VALIDA_M = 9000.0     # acima do Monte Everest, com folga
+DISTANCIA_MAXIMA_VALIDA_M = 20000.0   # 20 km: bem acima do alcance típico de um Site Survey LoRa
+
 # =============================================================================
 # CONTROLE DE RESET (truncamento dos arquivos do Nível 3 = novo teste)
 # =============================================================================
@@ -225,12 +235,27 @@ while True:
 
             lista_medida, lista_lat, lista_lon, lista_alt = [], [], [], []
             lista_distancia, lista_rssi = [], []
+            descartadas = 0
 
             for medida in medidas_comuns:
                 lat_s, lon_s, alt_s = dados_app[medida]
                 rssi_dl = dados_ger[medida][0]
 
+                # --- Descarta leituras de GPS com altitude fisicamente
+                # impossível (fix inválido do módulo GPS do sensor) ---
+                if not (ALTITUDE_MINIMA_VALIDA_M <= alt_s <= ALTITUDE_MAXIMA_VALIDA_M):
+                    descartadas += 1
+                    continue
+
                 d3d = distancia_3d_m(lat_gw, lon_gw, alt_gw, lat_s, lon_s, alt_s)
+
+                # --- Descarta distâncias fisicamente implausíveis para um
+                # Site Survey LoRa (segunda camada de proteção, caso a
+                # altitude em si pareça válida mas a combinação com o
+                # Gateway resulte em algo absurdo) ---
+                if d3d > DISTANCIA_MAXIMA_VALIDA_M:
+                    descartadas += 1
+                    continue
 
                 lista_medida.append(medida)
                 lista_lat.append(lat_s)
@@ -238,6 +263,10 @@ while True:
                 lista_alt.append(alt_s)
                 lista_distancia.append(d3d)
                 lista_rssi.append(rssi_dl)
+
+            if descartadas > 0:
+                print(f"### Nivel5_cobertura - {descartadas} medida(s) descartada(s) "
+                      f"por GPS/distância inválida(s) neste ciclo ###")
 
             lista_previsto = calcula_shadowing(lista_distancia, lista_rssi, n_exp)
 
