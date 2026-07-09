@@ -114,6 +114,10 @@ void Phy_radio_receive_DL() {
 //================ ENVIA O PACOTE UL ========
 void Phy_radio_send_UL() {
 
+
+  RSSI_dBm_DL = LoRa.packetRssi();
+  SNR_DL_bruto = LoRa.packetSnr();
+
   // Determina o offset baseado na frequência usada
   // (Ajuste para 164 se estiver usando 433MHz)
   int offset = 157; // Offset 157 para Frequência de 915MHz
@@ -146,8 +150,6 @@ void Phy_radio_send_UL() {
   {
    RSSI_DL = (((RSSI_dBm_DL +74)*2)+256) ;
   }
-
-
 
   // 1. Trava o valor entre -30 e +30 para evitar que o byte estoure
   if (SNR_DL_bruto < -30.0) SNR_DL_bruto = -30.0;
